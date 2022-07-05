@@ -35,7 +35,7 @@ def main(args:argparse.Namespace=None):
    if args.command == 'build':
       result = makeDB(args.name)
 
-      if result.startswith('Error'):
+      if isinstance(result, str) and result.startswith('Error'):
          parser.exit(message=result)
 
 if __name__ == '__main__':

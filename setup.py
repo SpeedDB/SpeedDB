@@ -22,6 +22,7 @@ v = get_version('speeddb/__init__.py')
 setup(
    name='speeddb',
    packages=find_packages(),
+   include_package_data=True,
    version=v,
    author='Nawaf Alqari',
    author_email='nawafalqari13@gmail.com',
@@ -30,21 +31,21 @@ setup(
    entry_points={
       'console_scripts': ['speeddb=speeddb.cli:runner']
    },
-   console=['speeddb/cli.py'],
+   # console=['speeddb/cli.py'],
    license='MIT',
    zip_safe=False,
    url='https://github.com/SpeedDB/SpeedDB',
    project_urls={
-         'Documentation': 'https://github.com/SpeedDB/SpeedDB#readme',
-         'Bug Tracker': 'https://github.com/SpeedDB/SpeedDB/issues',
-         'Source Code': 'https://github.com/SpeedDB/SpeedDB',
-         'Discord': 'https://discord.gg/cpvynqk4XT',
-         'Donate': 'https://paypal.me/NawafHAlqari'
+      'Documentation': 'https://github.com/SpeedDB/SpeedDB#readme',
+      'Bug Tracker': 'https://github.com/SpeedDB/SpeedDB/issues',
+      'Source Code': 'https://github.com/SpeedDB/SpeedDB',
+      'Discord': 'https://discord.gg/cpvynqk4XT',
+      'Donate': 'https://paypal.me/NawafHAlqari'
     },
     classifiers=[
-         'Programming Language :: Python :: 3',
-         'License :: OSI Approved :: MIT License',
-         'Operating System :: OS Independent',
-         'Topic :: Database'
+      'Programming Language :: Python :: 3',
+      'License :: OSI Approved :: MIT License',
+      'Operating System :: OS Independent',
+      'Topic :: Database'
     ]
 )

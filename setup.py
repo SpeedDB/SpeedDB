@@ -22,6 +22,9 @@ v = get_version('speeddb/__init__.py')
 setup(
    name='speeddb',
    packages=find_packages(),
+   install_requires=[
+      'pyonr>=2.0.0'
+   ],
    include_package_data=True,
    version=v,
    author='Nawaf Alqari',

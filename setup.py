@@ -23,7 +23,8 @@ setup(
    name='speeddb',
    packages=find_packages(),
    install_requires=[
-      'pyonr>=2.0.0'
+      'pyonr>=2.0.1',
+      'python-multipart==0.0.5'
    ],
    include_package_data=True,
    version=v,

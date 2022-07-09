@@ -1,4 +1,5 @@
+import requests
 import speeddb
 
-server = speeddb.SpeedDBServer(False)
+server = speeddb.SpeedDBServer('db')
 server.run()

@@ -1,6 +1,6 @@
 from os.path import isfile, abspath
 
-schema = str({'__docs': {}})
+schema = str({'__docs': []})
 
 def makeDB(name:str):
    finalName = None

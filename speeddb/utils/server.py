@@ -18,9 +18,10 @@ def makeServer(dbsPath):
       schema = {'err': False}
       
       ldbs = LocalDBs(dbsPath)
-      dbs = ldbs.dbsNames
+      dbs = list(map(lambda e:e.removesuffix('.sdb'), ldbs.dbsNames))
 
       schema['dbs'] = dbs
+      
       return schema
 
    @app.get('/{dbName}')

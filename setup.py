@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 import os
-import py2exe
+# import py2exe
 
 def read(rel_path):
    import codecs

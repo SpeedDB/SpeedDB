@@ -1,302 +1,462 @@
 from pyonr import read
 from pyonr.converter import convert, PYON, OBJ
-from uvicorn import run as runServer
-from uvicorn import Config, Server
 from threading import Thread
-from socket import gethostbyname, gethostname
-from os.path import abspath
+from socket import gethostbyname, gethostname, socket, AF_INET, SOCK_DGRAM
 from requests import request as _req
-from typing import Dict
-from os.path import isfile
+from typing import Dict, List
+from os.path import isfile, split, join
+from os import listdir
 
-from speeddb.utils.mkdb import schema
-from speeddb.utils.server import makeServer
+from speeddb.utils.database import schema
+from speeddb.utils.server import RunUDPServer
 from .errors import *
-from multiprocessing import freeze_support
+
+# class SpeedDBDatabase:
+   # def __init__(self, dbHost:str, dbName:str=None, hostType:str=None):
+   #    if isfile(dbHost):
+   #       self.hostType = 'file'
+   #       self.r = read(dbHost)
+   #    else:
+   #       self.hostType = hostType
+
+   #    self.dbHost = dbHost
+   #    self.dbName = dbName
+
+   # def _HttpRead(self):
+   #    return convert(PYON, OBJ, _req('GET', self.dbHost).content.decode('utf-8'))
+
+   # def _HttpWrite(self, documents:dict):
+   #    req = _req('POST', self.dbHost, data={
+   #       'data': f'{convert(OBJ, PYON, documents)}'
+   #    })
+
+   #    return req.json()
+
+   # def _FileRead(self):
+   #    return self.r.read
+
+   # def _FileWrite(self, documents:dict):
+   #    self.r.write(documents)
+      
+   # def get(self, _filter:dict) -> dict:
+   #    if not isinstance(_filter, dict):
+   #       raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
+
+   #    document = self.getMany(_filter)
+   #    return None if not document else document[0]
+
+   # def getMany(self, _filter:dict) -> list:
+   #    if not isinstance(_filter, dict):
+   #       raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
+
+   #    if self.hostType == 'http':
+   #       return algorithm(self._HttpRead()['__docs'], _filter)
+
+   #    if self.hostType == 'file':
+   #       return algorithm(self._FileRead()['__docs'], _filter)
+
+   # def append(self, document:dict):
+   #    '''
+   #    `Append One` document to the database
+
+   #    >>> name = input('What is your name: ')
+   #    >>> db.append({'name': name})
+      
+   #    '''
+   #    if not isinstance(document, dict):
+   #       raise TypeError(f'Unexpected document type of: {document.__class__.__name__}')
+
+   #    if self.hostType == 'http':
+   #       dbData = self._HttpRead()
+
+   #       dbData['__docs'].append(document)
+   #       self._HttpWrite(dbData)
+
+   #    if self.hostType == 'file':
+   #       dbData = self._FileRead()
+
+   #       dbData['__docs'].append(document)
+   #       self._FileWrite(dbData)
+
+   # def appendMany(self, documents):
+   #    '''
+   #    `Append Many` documents to the database
+
+   #    >>> names = [input('name: ') for name in range(3)] # will show 3 inputs
+   #    >>> db.appendMany(names)
+      
+   #    '''
+
+   #    if not isinstance(documents, list):
+   #       raise TypeError(f'Unexpected documents type: {documents.__class__.__name__}')
+   #    if not allTypes(documents, dict):
+   #       raise TypeError(f'Documents elements must be dict')
+
+   #    for document in documents:
+   #       self.append(document)
+
+   # def remove(self, _filter:dict):
+   #    if not isinstance(_filter, dict):
+   #       raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
+      
+   #    if self.hostType == 'http':
+   #       dbData = self._HttpRead()
+   #       fullDocument = self.get(_filter)
+
+   #       dbData['__docs'].remove(fullDocument)
+   #       self._HttpWrite(dbData)
+
+   #    if self.hostType == 'file':
+   #       dbData = self._FileRead()
+   #       fullDocument = self.get(_filter)
+
+   #       dbData['__docs'].remove(fullDocument)
+   #       self._FileWrite(dbData)
+
+   # def removeMany(self, _filter:dict):
+   #    if not isinstance(_filter, dict):
+   #       raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
+      
+   #    if _filter == {}:
+   #       if self.hostType == 'http':
+   #          self._HttpWrite(schema)
+   #       if self.hostType == 'file':
+   #          self._FileWrite(schema)
+
+   #    else:
+   #       documents = self.getMany(_filter)
+
+   #       for document in documents:
+   #          self.remove(document)
+
+   # def update(self, _filter:dict, update:dict):
+   #    if not isinstance(_filter, dict):
+   #       raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
+   #    if not isinstance(update, dict):
+   #       raise TypeError(f'Unexpected update type: {update.__class__.__name__}')
+
+   #    if self.hostType == 'http':
+   #       dbData = self._HttpRead()
+   #       fullDocument = self.get(_filter)
+   #       documentIndex = dbData['__docs'].index(fullDocument)
+
+   #       dbData['__docs'][documentIndex] = update
+
+   #       self._HttpWrite(dbData)
+
+   #    if self.hostType == 'file':
+   #       dbData = self._FileRead()
+   #       fullDocument = self.get(_filter)
+   #       documentIndex = dbData['__docs'].index(fullDocument)
+
+   #       dbData['__docs'][documentIndex] = update
+
+   #       self._FileWrite(dbData)
+   
+   
 
 class SpeedDBServer:
-   """
+   '''
    
-   `SpeedDBServer` is used to run a server to get/send data using `SpeedDBClient`
+   `SpeedDBServer` is used to run a udp server to send/receive database data
 
-   """
-   def __init__(self, dbsPath:str='.', local:bool=True, port:int=5440):
-      """
+   '''
+   def __init__(self, databasesPath:str, localServer:bool=True, port:int=5440):
+      '''
+      
+
+
+      '''
+      self.databasesPath = databasesPath
+      self.localServer = localServer
+      self.port = port
+
+   def _buildIP(self):
+      ip = ''
+      ipAddr = ''
+      port = self.port
+      address = ()
+
+      if self.localServer:
+         ipAddr = '127.0.0.1'
+         ip += ipAddr
+      else:
+         ipAddr = gethostbyname(gethostname()) # IPv4 Address
+         ip += ipAddr
+         
+      ip += f':{self.port}'
+      adress = (ipAddr, port)
+
+      return ip, adress
+
+   def run(self, daemon:bool=False):
+      '''
+      
+      run the udp server
+
+      Parameters:
+      -----------
+      
+      `daemon`: bool = False
+         Run the server as daemon (in the background)
+      
+      '''
+      
+      if not daemon:
+         ip, address = self._buildIP()
+         print(f'SpeedDB Server is running in {ip}, {address}')
+
+         RunUDPServer(self.databasesPath, self.localServer, self.port)
+
+         return ip, address
+
+      else:
+         ip, address = self._buildIP()
+         print(f'SpeedDB Server is running in {ip}, {address}')
+         
+         serverThread = Thread(target=RunUDPServer, args=(self.databasesPath, self.localServer, self.port), daemon=daemon)
+         serverThread.run()
+
+         return ip, address
+
+   def shutdown(self):
+      # TODO: Make server shutdown when self.shutdown is called
+      pass
+
+   def stop(self):
+      self.shutdown()
+
+class UDPDatabase:
+   def __init__(self, client:socket, address:tuple, dbName:str, bufferSize:int=1024):
+      self.client = client
+      self.dbName = dbName
+      self.addr = address
+      self.bufferSize = bufferSize
+
+   def _buildData(self, **kwargs):
+      return convert(OBJ, PYON, {**kwargs})
+
+   def _send(self, data:str):
+      dataLength = f'{len(data)}'.encode('utf-8')
+      data = data.encode('utf-8')
+
+      self.client.sendto(dataLength, self.addr)
+      self.client.sendto(data, self.addr)
+
+   def _recv(self):
+      dataLength, address = self.client.recvfrom(self.bufferSize)
+
+      if dataLength:
+         data, address = self.client.recvfrom(int(dataLength))
+         data = data.decode('utf-8')
+
+         if data.startswith('Error: '):
+            raise ServerError(data)
+
+         else:
+            data = convert(PYON, OBJ, data)
+
+            return data
+
+   @property
+   def documents(self) -> int:
+      return len(self.getMany({}))
+      
+   def get(self, _filter:dict):
+      if not isinstance(_filter, dict):
+         raise TypeError(f'_filter should be dictionary not {getClassName(_filter)}')
+
+      documents = self.getMany(_filter)
+      return None if not documents else documents[0]
+
+   def getMany(self, _filter:dict):
+      actionType = 'getMany'
+      if not isinstance(_filter, dict):
+         raise TypeError(f'_filter should be dictionary not {getClassName(_filter)}')
+
+      self._send(self._buildData(
+         type=actionType,
+         dbName=self.dbName,
+         data=_filter
+      ))
+
+      return self._recv()
+
+   def append(self, document:dict):
+      actionType = 'append'
+      if not isinstance(document, dict):
+         raise TypeError(f'document should be dictionary not {getClassName(document)}')
+
+      self._send(self._buildData(
+         type=actionType,
+         dbName=self.dbName,
+         data=document
+      ))
+
+   def appendMany(self, documents:List[Dict]):
+      actionType = 'appendMany'
+      if not isinstance(documents, list):
+         raise TypeError(f'documents should be list not {getClassName(documents)}')
+      if not allTypes(documents, dict):
+         raise TypeError(f'every element in documents must be dictionary')
+
+      self._send(self._buildData(
+         type=actionType,
+         dbName=self.dbName,
+         data=documents
+      ))
+
+   def remove(self, _filter:dict):
+      actionType = 'remove'
+      if not isinstance(_filter, dict):
+         raise TypeError(f'_filter should be dictionary not {getClassName(_filter)}')
+      
+      self._send(self._buildData(
+         type=actionType,
+         dbName=self.dbName,
+         data=_filter
+      ))
+
+   def removeMany(self, _filter:dict):
+      actionType = 'removeMany'
+      if not isinstance(_filter, dict):
+         raise TypeError(f'_filter should be dictionary not {getClassName(_filter)}')
+      
+      self._send(self._buildData(
+         type=actionType,
+         dbName=self.dbName,
+         data=_filter
+      ))
+
+   def update(self, _filter:dict, update:dict):
+      actionType = 'update'
+      if not isinstance(_filter, dict):
+         raise TypeError(f'_filter should be dictionary not {getClassName(_filter)}')
+
+      if not isinstance(update, dict):
+         raise TypeError(f'update should be dictionary not {getClassName(update)}')
+      
+      self._send(self._buildData(
+         type=actionType,
+         dbName=self.dbName,
+         data=_filter,
+         update=update
+      ))
+
+class SpeedDBClient:
+   def __init__(self, address=None, *, ip=None, port=None, bufferSize:int=1024):
+      '''
+      
+      `SpeedDBClient` is a client to send/receive data from multiple databases that are ran using `SpeedDBServer`
       
       Parameters:
       -----------
 
-      `dbsPath` : str
-         Where your databases are stored (1 or more databases), "." is referred to the file path
+      `address`: tuple = None
+         the server's address (ip, port)
          
-      `local` : bool
-         If `False` the server will run on your IP Address which means you can access it from any device on the same network,
-         If `True` the server will only be accessible on your machine, default=True
+         example: `('127.0.0.1', 5440)`
 
-      `port` : int
-         The port that the server will run on, default=5440
-      
-      """
-      
-      self.dbsPath = abspath(dbsPath)
-      self.local = local
-      self.port = port
-      self.server = makeServer(self.dbsPath)
+      `ip`: str = None
+         the server's ip address (not required if the address was given)
 
-   def _runServer(self, workers:int):
-      config = Config(self.server, port=self.port, log_level='error', workers=workers)
-      if not self.local:
-         config.host = '0.0.0.0'
-         server = Server(config)
-         server.run()
-         # runServer(self.server, host='0.0.0.0', port=self.port, log_level='error', workers=workers)
-      else:
-         server = Server(config)
-         server.run()
-         # runServer('self.server', port=self.port, log_level='error', workers=workers)
+      `port`: int = None
+         the server's port (not required if the address was given)
 
-   def _buildURL(self):
-      url = 'http://'
+      `bufferSize`: int = 1024
+         buffer size which is used in `socket.recvfrom(bufferSize)`
 
-      if self.local:
-         url += '127.0.0.1'
-      else:
-         url += gethostbyname(gethostname()) # IPv4 Address
-         
-      url += f':{self.port}'
+      Important Note:
 
-      return url
+      if the `address` + `ip` + `port` were not given
+         the default values for them will be:
+            - `address=('127.0.0.1', 5440)`
+            - `ip='127.0.0.1'`
+            - `port=5440`
 
-   def run(self, daemon:bool=False, workers:int=3):
-
-
-      if not daemon:
-         print(f'SpeedDB Server is running on {self._buildURL()}')
-         self._runServer(workers)
-
-         return self._buildURL()
-      else:
-         print(f'SpeedDB Server is running on {self._buildURL()}')
-         thread = Thread(target=self._runServer, daemon=True, name='SpeedDB Server', kwargs={'workers': workers})
-
-         self.thread = thread
-         
-         thread.start()
-
-         return self._buildURL()
-         
-   def shutdown(self):
-      self.thread
-         
-class SpeedDBDatabase:
-   def __init__(self, dbHost:str, dbName:str=None, hostType:str=None):
-      if isfile(dbHost):
-         self.hostType = 'file'
-         self.r = read(dbHost)
-      else:
-         self.hostType = hostType
-
-      self.dbHost = dbHost
-      self.dbName = dbName
-
-   def _HttpRead(self):
-      return convert(PYON, OBJ, _req('GET', self.dbHost).content.decode('utf-8'))
-
-   def _HttpWrite(self, documents:dict):
-      req = _req('POST', self.dbHost, data={
-         'data': f'{convert(OBJ, PYON, documents)}'
-      })
-
-      return req.json()
-
-   def _FileRead(self):
-      return self.r.read
-
-   def _FileWrite(self, documents:dict):
-      self.r.write(documents)
-      
-   def get(self, _filter:dict) -> dict:
-      if not isinstance(_filter, dict):
-         raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
-
-      document = self.getMany(_filter)
-      return None if not document else document[0]
-
-   def getMany(self, _filter:dict) -> list:
-      if not isinstance(_filter, dict):
-         raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
-
-      if self.hostType == 'http':
-         documents = algorithm(self._HttpRead()['__docs'], _filter)
-         return None if not documents else documents 
-
-      if self.hostType == 'file':
-         documents = algorithm(self._FileRead()['__docs'], _filter)
-
-         return None if not documents else documents
-
-   def append(self, document:dict):
+      You have to specifiy either `address` or (`ip` + `port`)
       '''
-      `Append One` document to the database
+      if not address and ((ip and not port) or (not ip and port)):
+         raise TypeError('You have to specifiy either (address) or (ip + port)')
 
-      >>> name = input('What is your name: ')
-      >>> db.append({'name': name})
-      
-      '''
-      if not isinstance(document, dict):
-         raise TypeError(f'Unexpected document type of: {document.__class__.__name__}')
+      if not address and not ip and not port:
+         self.ip = '127.0.0.1'
+         self.port = 5440
+         self.addr = (self.ip, self.port)
+         self.hostType = 'UDP'
 
-      if self.hostType == 'http':
-         dbData = self._HttpRead()
+      elif not address and ip and port:
+         self.ip = ip
+         self.port = port
+         self.addr = (ip, port)
+         self.hostType = 'UDP'
 
-         dbData['__docs'].append(document)
-         self._HttpWrite(dbData)
-
-      if self.hostType == 'file':
-         dbData = self._FileRead()
-
-         dbData['__docs'].append(document)
-         self._FileWrite(dbData)
-
-   def appendMany(self, documents:list[dict]):
-      '''
-      `Append Many` documents to the database
-
-      >>> names = [input('name: ') for name in range(3)] # will show 3 inputs
-      >>> db.appendMany(names)
-      
-      '''
-
-      if not isinstance(documents, list):
-         raise TypeError(f'Unexpected documents type: {documents.__class__.__name__}')
-      if not allTypes(documents, dict):
-         raise TypeError(f'Documents elements must be dict')
-
-      for document in documents:
-         self.append(document)
-
-   def remove(self, _filter:dict):
-      if not isinstance(_filter, dict):
-         raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
-      
-      if self.hostType == 'http':
-         dbData = self._HttpRead()
-         fullDocument = self.get(_filter)
-
-         dbData['__docs'].remove(fullDocument)
-         self._HttpWrite(dbData)
-
-      if self.hostType == 'file':
-         dbData = self._FileRead()
-         fullDocument = self.get(_filter)
-
-         dbData['__docs'].remove(fullDocument)
-         self._FileWrite(dbData)
-
-   def removeMany(self, _filter:dict):
-      if not isinstance(_filter, dict):
-         raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
-      
-      if _filter == {}:
-         if self.hostType == 'http':
-            self._HttpWrite(schema)
-         if self.hostType == 'file':
-            self._FileWrite(schema)
+      elif address and not ip and not port:
+         self.ip = address[0]
+         self.port = address[1]
+         self.addr = address
+         self.hostType = 'UDP'
 
       else:
-         documents = self.getMany(_filter)
+         self.ip = ip
+         self.port = port
+         self.addr = (ip, port)
+         self.hostType = 'UDP'
 
-         for document in documents:
-            self.remove(document)
+      self.bufferSize = bufferSize
+      self.client = socket(AF_INET, SOCK_DGRAM)
+      self._send(
+         self._buildData(type='Handshake')
+      )
 
-   def update(self, _filter:dict, update:dict):
-      if not isinstance(_filter, dict):
-         raise TypeError(f'Unexpected _filter type: {_filter.__class__.__name__}')
-      if not isinstance(update, dict):
-         raise TypeError(f'Unexpected update type: {update.__class__.__name__}')
+   def _buildData(self, **kwargs):
+      return convert(OBJ, PYON, {**kwargs})
 
-      if self.hostType == 'http':
-         dbData = self._HttpRead()
-         fullDocument = self.get(_filter)
-         documentIndex = dbData['__docs'].index(fullDocument)
+   def _send(self, data:str):
+      dataLength = f'{len(data)}'.encode('utf-8')
+      data = data.encode('utf-8')
 
-         dbData['__docs'][documentIndex] = update
+      self.client.sendto(dataLength, self.addr)
+      self.client.sendto(data, self.addr)
 
-         self._HttpWrite(dbData)
+   def _recv(self):
+      dataLength, address = self.client.recvfrom(self.bufferSize)
 
-      if self.hostType == 'file':
-         dbData = self._FileRead()
-         fullDocument = self.get(_filter)
-         documentIndex = dbData['__docs'].index(fullDocument)
+      if dataLength:
+         data, address = self.client.recvfrom(int(dataLength))
+         data = data.decode('utf-8')
 
-         dbData['__docs'][documentIndex] = update
+         if data.startswith('Error: '):
+            raise ServerError(data)
 
-         self._FileWrite(dbData)
-   
-class SpeedDBClient:
-   def __init__(self, host:str=None):
-      if host is None:
-         try:
-            defaultHost = 'http://localhost:5440' 
-            _req('HEAD', defaultHost)
+         else:
+            data = convert(PYON, OBJ, data)
 
-            self.host = defaultHost
-            self.__hostType = 'http'
-         except:
-            raise ConnectionError("Couldn't connect to default host, did you forget to specifiy the host?")
-
-      else:
-         try:
-            _req('HEAD', host)
-
-            self.host = host
-            self.__hostType = 'http'
-         except:
-            raise ConnectionError(f"{host} is an invalid host")
-
-      if self.hostType == 'http':
-         self.__dbs = _req('GET', self.host).json()['dbs']
+            return data
 
    @property
-   def hostType(self):
-      return self.__hostType
+   def databases(self) -> Dict[str, UDPDatabase]:
+      self._send(
+         self._buildData(type='getDatabases')
+      )
+      databases = self._recv()
+      resultDict = {}
 
-   @property
-   def databases(self) -> Dict[str, SpeedDBDatabase]:
-      dbNames = map(lambda e:e.removesuffix('.sdb'), self.__dbs)
-      dbs = {
-         db: SpeedDBDatabase(self._buildDBURL(db), db, self.hostType) for db in dbNames
-      }
-      return dbs
+      for db in databases:
+         if db.endswith('.sdb'):
+            resultDict[db.replace('.sdb', '').strip()] = UDPDatabase(self.client, self.addr, db)
+         if not db.endswith('.sdb'):
+            resultDict[f'{db}.sdb'] = UDPDatabase(self.client, self.addr, db, self.bufferSize)
 
-   def _buildDBURL(self, dbName:str):
-      tempDBName = None
-      if not dbName.endswith('.sdb'):
-         tempDBName = f'{dbName}.sdb'
+         resultDict[db] = UDPDatabase(self.client, self.addr, db, self.bufferSize)
 
-      if (dbName not in self.__dbs) and (tempDBName not in self.__dbs):
-         raise InvalidDBNameError(f'{dbName} is not in databases list')
+      return resultDict
 
-      URLResult = ''
+def getClassName(object):
+   return object.__class__.__name__
 
-      if self.host.endswith('/'):
-         URLResult += f'{self.host}{dbName}'
-      else:
-         URLResult += f'{self.host}/{dbName}'
+def findDatabases(path:str):
+   return list(map(lambda e:join(path, e), filter(lambda e:e.endswith('.sdb'), listdir(path))))
 
-      return URLResult
-
-def algorithm(documents, _filter):
-   return [d for d in documents if sum(1 for k, v in d.items() if _filter.get(k)==v) >= len(_filter)]
-
-def allTypes(l:list, _type):
-   '''
-   Checks if every element in a list is the same `type`
-
-   ```python
-   >>> l = [1, 2, 3, 'str']
-   >>> checkTypes(l, int)
-   False
-   ```
-   '''
-   return list(filter(lambda e:type(e) == _type, l)) == l
+def allTypes(l:list, t):
+   return all(isinstance(x, t) for x in l)

@@ -1,7 +1,7 @@
 import argparse
 import os.path
 
-from speeddb.utils.mkdb import makeDB
+from speeddb.utils.database import makeDB
 
 def read(rel_path):
    import codecs
